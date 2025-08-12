@@ -58,11 +58,13 @@ class DiCoWPipeline(AutomaticSpeechRecognitionPipeline):
         for i, speaker_samples in enumerate(per_speaker_samples):
             stno_mask = self.get_stno_mask(diarization_mask, i)
             stno_masks.append(stno_mask)
-        sample['vad_mask'] = torch.stack(stno_masks, axis=0).to(sample['input_features'].device,
+        sample['stno_mask'] = torch.stack(stno_masks, axis=0).to(sample['input_features'].device,
                                                                 dtype=sample['input_features'].dtype)
         sample['input_features'] = sample['input_features'].repeat(len(per_speaker_samples), 1, 1)
         sample['attention_mask'] = torch.ones(sample['input_features'].shape[0], sample['input_features'].shape[2],
                                               dtype=torch.bool, device=sample['input_features'].device)
+        if "num_frames" in sample:
+            del sample["num_frames"]
         yield sample
 
     def _forward(self, model_inputs, return_timestamps=False, **generate_kwargs):
@@ -92,19 +94,6 @@ class DiCoWPipeline(AutomaticSpeechRecognitionPipeline):
             if return_timestamps == "word":
                 generate_kwargs["return_token_timestamps"] = True
                 generate_kwargs["return_segments"] = True
-
-                if stride is not None:
-                    if isinstance(stride, tuple):
-                        generate_kwargs["num_frames"] = stride[0] // self.feature_extractor.hop_length
-                    else:
-                        generate_kwargs["num_frames"] = [s[0] // self.feature_extractor.hop_length for s in stride]
-
-                else:
-                    if isinstance(segment_size, int):
-                        generate_kwargs["num_frames"] = segment_size // self.feature_extractor.hop_length
-                    else:
-                        generate_kwargs["num_frames"] = segment_size[0] // self.feature_extractor.hop_length
-
             generate_kwargs["input_features"] = inputs
 
         tokens = self.model.generate(
@@ -210,7 +199,24 @@ class DiCoWPipeline(AutomaticSpeechRecognitionPipeline):
     def postprocess(
             self, model_outputs, decoder_kwargs: Optional[Dict] = None, return_timestamps=None, return_language=None
     ):
-        per_spk_outputs = self.tokenizer.batch_decode(model_outputs[0]['tokens'], decode_with_timestamps=True, skip_special_tokens=True)
-        full_text = "\n".join([f"|Speaker {spk}|: {self.postprocess_text(text)}" for spk, text in enumerate(per_spk_outputs)])
+        per_spk_outputs = self.tokenizer.batch_decode(
+            model_outputs[0]['tokens'], decode_with_timestamps=True, skip_special_tokens=True
+        )
+
+        formatted_lines = []
+        for spk, text in enumerate(per_spk_outputs):
+            processed_text = self.postprocess_text(text)
+
+            # Split on each timestamp pair
+            # This regex finds "<|start|>...<|end|>" pairs with everything inside
+            segments = re.findall(r"(<\|\d+\.\d+\|>.*?<\|\d+\.\d+\|>)", processed_text)
+
+            # Build the output for this speaker
+            speaker_header = f"🗣️ Speaker {spk}:\n"
+            speaker_body = "\n".join(segments)
+            formatted_lines.append(f"{speaker_header}{speaker_body}")
+
+        full_text = "\n\n".join(formatted_lines)
+
         return {"text": full_text, "per_spk_outputs": per_spk_outputs}
 
