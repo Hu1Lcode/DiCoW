@@ -4,15 +4,17 @@ DiCoW (Diarization-Conditioned Whisper) enhances OpenAI’s Whisper ASR model by
 
 Training and inference source codes can be found here: [TS-ASR-Whisper](https://github.com/BUTSpeechFIT/TS-ASR-Whisper)
 
+> **Note:** For the original v1 model, see the [`v1` branch](https://github.com/BUTSpeechFIT/DiCoW/tree/v1).
+
 ## Features
 
 - **Multi-Speaker ASR**: Handles multi-speaker audio using diarization-aware transcription.  
 - **Flexible Input Sources**:  
   - **Microphone**: Record and transcribe live audio.  
   - **Audio File Upload**: Upload pre-recorded audio files for transcription.  
+  - **Folder Batch Processing** – Process multiple .wav files from a directory via the command line.
 - **Diarization Support**: Powered by `BUT-FIT/diarizen-wavlm-large-s80-mlc` for accurate speaker segmentation.  
 - **Built with 🤗 Transformers**: Uses the latest Whisper checkpoints for robust transcription.  
-
 
 ## Demo
 
@@ -63,12 +65,22 @@ Before running the app, ensure you have the following installed:
    
 ## Usage
 
+### Web Interface
+
 Run the application locally:  
 ```bash
   python app.py  
 ```
 
 Once the server is running, access the app in your browser at `http://localhost:7860`.
+
+### Processing a Folder of WAV Files (Command Line)
+
+To process multiple `.wav` files at once, run:
+
+```bash
+python inference.py --input-folder /path/to/wav/files
+```
 
 ### Linux service
 
@@ -88,8 +100,9 @@ systemctl disable DiCoW-background.service #will not start on restart anymore
 
 ### Modes
 
-1. **Microphone**: Use your device’s microphone for live transcription.  
-2. **Audio File Upload**: Upload pre-recorded audio files for diarization-conditioned transcription.  
+1. **Microphone**: Use your device's microphone for live transcription.  
+2. **Audio File Upload**: Upload pre-recorded audio files for diarization-conditioned transcription.
+3. **Folder Batch Processing**: Process multiple WAV files from command line for automated workflows.
 
 ## Contributing
 We welcome contributions! If you’d like to add features or improve the app, please open an issue or submit a pull request.
