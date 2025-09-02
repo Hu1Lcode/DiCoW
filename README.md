@@ -108,7 +108,14 @@ systemctl disable DiCoW-background.service #will not start on restart anymore
 We welcome contributions! If you’d like to add features or improve the app, please open an issue or submit a pull request.
 
 ## License
-This project is licensed under the [Apache License 2.0](LICENSE).
+
+This project combines multiple components, each with its own license:
+
+* **DiCoW** (this repository): Licensed under the [Apache License 2.0](LICENSE).
+* **DiCoW Model Weights**: Released under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) – attribution required for usage.
+* **Diarizen (BUT-FIT/diarizen-wavlm-large-s80-mlc)**: Licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) – free for research and non-commercial use only.
+
+Please ensure compliance with the respective licenses when using, modifying, or redistributing these components.
 
 ## Citation
 If you use our model or code, please, cite:
