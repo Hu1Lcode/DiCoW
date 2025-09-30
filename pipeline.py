@@ -2,11 +2,38 @@ import os
 import re
 from typing import Dict, Optional
 
+import gradio as gr
 from librosa import load as libr_load, to_mono as libr_to_mono
 from soundfile import write as sf_write
 import torch
 from transformers.pipelines.automatic_speech_recognition import AutomaticSpeechRecognitionPipeline
 
+def change_state_of_sbs(model, new_state):
+    for fddt_layer in model.encoder.fddts:
+        if fddt_layer.use_interaction:
+            fddt_layer.scb.method.enabled = new_state
+
+
+def max_ones_window(tensor: torch.Tensor, window_size: int = 30):
+    # Create a 1D convolution kernel of ones
+    kernel = torch.ones(window_size, dtype=torch.float32, device=tensor.device)
+
+    # Use conv1d: reshape to [N, C, L] format
+    # input: [1, 1, L], weight: [1, 1, K]
+    input_tensor = tensor.view(1, 1, -1)
+    kernel = kernel.view(1, 1, -1)
+
+    # Convolution gives rolling sums (like np.convolve with 'valid')
+    window_sums = torch.nn.functional.conv1d(input_tensor, kernel).squeeze()
+
+    # Find index of maximum sum
+    max_start = torch.argmax(window_sums).item()
+    max_sum = window_sums[max_start].item()
+
+    # Extract the slice of the original tensor
+    max_slice = tensor[max_start:max_start + window_size]
+
+    return max_start, max_sum, max_slice
 
 class DiCoWPipeline(AutomaticSpeechRecognitionPipeline):
     def __init__(self, *args, diarization_pipeline, **kwargs):
@@ -33,13 +60,45 @@ class DiCoWPipeline(AutomaticSpeechRecognitionPipeline):
         stno_mask = torch.stack([sil_frames, target_spk, non_target_spk, overlapping_speech], axis=0)
         return stno_mask
 
+
+    def _process_enrollment_sample(self, samples, idx, stno_mask, original_stno_length):
+        """Process enrollment sample with padding to match original size."""
+        # Find best 30s enrollment window
+        enrollment_length = 30 * 50
+        best_start, best_sum, _ = max_ones_window(stno_mask[1], window_size=30 * 50)
+
+        # Extract enrollment features
+        enrollment_features = samples['input_features'][idx][:, best_start*2:best_start*2 + enrollment_length*2]
+        enrollment_attention = samples['attention_mask'][idx][best_start*2:best_start*2 + enrollment_length*2]
+        enrollment_stno = stno_mask[:, best_start:best_start + enrollment_length]
+
+        # Pad to original size if needed
+        pad_size = original_stno_length - enrollment_length
+        # Pad features
+        feature_pad = torch.zeros(enrollment_features.shape[0], 2* pad_size,
+                                dtype=enrollment_features.dtype,
+                                device=enrollment_features.device)
+        enrollment_features = torch.cat([enrollment_features, feature_pad], dim=1)
+
+        # Pad attention mask (zeros for padding)
+        attention_pad = torch.zeros(2* pad_size, dtype=enrollment_attention.dtype,
+                                  device=enrollment_attention.device)
+        enrollment_attention = torch.cat([enrollment_attention, attention_pad], dim=0)
+
+        # Pad STNO mask (zeros for padding)
+        stno_pad = torch.zeros(enrollment_stno.shape[0], pad_size,
+                             dtype=enrollment_stno.dtype,
+                             device=enrollment_stno.device)
+        enrollment_stno = torch.cat([enrollment_stno, stno_pad], dim=1)
+
+        return enrollment_features, enrollment_attention, enrollment_stno
+
     def preprocess(self, inputs, chunk_length_s=0, stride_length_s=None):
         if not isinstance(inputs, str):
             raise ValueError("For now input must be a string representing a path to an audio file")
-            
-    
+
+
         input_dirname = os.path.dirname(inputs)
-        input_basename = os.path.basename(inputs)
         resampled_path = f'{input_dirname}/resampled.wav'
 
         inp_aud, sr = libr_load(inputs, sr=16_000, mono=True)
@@ -47,25 +106,66 @@ class DiCoWPipeline(AutomaticSpeechRecognitionPipeline):
         inputs = resampled_path
 
         generator = super().preprocess(inputs, chunk_length_s=chunk_length_s, stride_length_s=stride_length_s)
-        sample = next(generator)
-        
+        samples = next(generator)
+
         diariation_output = self.diarization_pipeline(inputs)
         per_speaker_samples = []
         for speaker in diariation_output.labels():
             per_speaker_samples.append(diariation_output.label_timeline(speaker))
-        diarization_mask = self.get_diarization_mask(per_speaker_samples, sample['input_features'].shape[-1] // 2)
+        diarization_mask = self.get_diarization_mask(per_speaker_samples, samples['input_features'].shape[-1] // 2)
         stno_masks = []
         for i, speaker_samples in enumerate(per_speaker_samples):
             stno_mask = self.get_stno_mask(diarization_mask, i)
             stno_masks.append(stno_mask)
-        sample['stno_mask'] = torch.stack(stno_masks, axis=0).to(sample['input_features'].device,
-                                                                dtype=sample['input_features'].dtype)
-        sample['input_features'] = sample['input_features'].repeat(len(per_speaker_samples), 1, 1)
-        sample['attention_mask'] = torch.ones(sample['input_features'].shape[0], sample['input_features'].shape[2],
-                                              dtype=torch.bool, device=sample['input_features'].device)
-        if "num_frames" in sample:
-            del sample["num_frames"]
-        yield sample
+        samples['stno_mask'] = torch.stack(stno_masks, axis=0).to(samples['input_features'].device,
+                                                                dtype=samples['input_features'].dtype)
+        samples['input_features'] = samples['input_features'].repeat(len(per_speaker_samples), 1, 1)
+        samples['attention_mask'] = torch.ones(samples['input_features'].shape[0], samples['input_features'].shape[2],
+                                              dtype=torch.bool, device=samples['input_features'].device)
+        if "num_frames" in samples:
+            del samples["num_frames"]
+
+        if hasattr(self.model.config, "uses_enrollments") and self.model.config.uses_enrollments:
+            if  len (inp_aud) / sr <= 30.0:
+                # We are in the shortform regime, we don't want to condition, deactivate enrollments
+                gr.Info(
+                    "If you are experiencing suboptimal performance, consider using a non–self-enrollment conditioned model (e.g., `BUT-FIT/DiCoW_v3_2`) for inputs shorter than 30s.")
+                change_state_of_sbs(self.model.model, False)
+            else:
+                change_state_of_sbs(self.model.model, True)
+
+                # Collect all samples (original + enrollment)
+                all_input_features = []
+                all_attention_masks = []
+                all_stno_masks = []
+                all_is_valid = []
+
+                original_stno_length = samples['stno_mask'].shape[-1]
+
+                for idx, stno_mask in enumerate(samples['stno_mask']):
+                    # Add original sample
+                    all_input_features.append(samples['input_features'][idx])
+                    all_attention_masks.append(samples['attention_mask'][idx])
+                    all_stno_masks.append(stno_mask)
+                    all_is_valid.append(True)
+
+                    # Add enrollment sample (padded to original size)
+                    enrollment_features, enrollment_attention, enrollment_stno = self._process_enrollment_sample(
+                        samples, idx, stno_mask, original_stno_length
+                    )
+                    all_input_features.append(enrollment_features)
+                    all_attention_masks.append(enrollment_attention)
+                    all_stno_masks.append(enrollment_stno)
+                    all_is_valid.append(False)
+
+                # Stack all samples
+                samples['input_features'] = torch.stack(all_input_features, dim=0)
+                samples['attention_mask'] = torch.stack(all_attention_masks, dim=0)
+                samples['stno_mask'] = torch.stack(all_stno_masks, dim=0)
+                samples['is_valid'] = torch.tensor(all_is_valid, dtype=torch.bool,
+                                                 device=samples['input_features'].device)
+
+        yield samples
 
     def _forward(self, model_inputs, return_timestamps=False, **generate_kwargs):
         attention_mask = model_inputs.pop("attention_mask", None)
