@@ -3,10 +3,11 @@ import re
 from typing import Dict, Optional
 
 import gradio as gr
-from librosa import load as libr_load, to_mono as libr_to_mono
-from soundfile import write as sf_write
 import torch
+from librosa import load as libr_load
+from soundfile import write as sf_write
 from transformers.pipelines.automatic_speech_recognition import AutomaticSpeechRecognitionPipeline
+
 
 def change_state_of_sbs(model, new_state):
     for fddt_layer in model.encoder.fddts:
@@ -35,6 +36,7 @@ def max_ones_window(tensor: torch.Tensor, window_size: int = 30):
 
     return max_start, max_sum, max_slice
 
+
 class DiCoWPipeline(AutomaticSpeechRecognitionPipeline):
     def __init__(self, *args, diarization_pipeline, **kwargs):
         super().__init__(*args, **kwargs)
@@ -60,7 +62,6 @@ class DiCoWPipeline(AutomaticSpeechRecognitionPipeline):
         stno_mask = torch.stack([sil_frames, target_spk, non_target_spk, overlapping_speech], axis=0)
         return stno_mask
 
-
     def _process_enrollment_sample(self, samples, idx, stno_mask, original_stno_length):
         """Process enrollment sample with padding to match original size."""
         # Find best 30s enrollment window
@@ -68,27 +69,27 @@ class DiCoWPipeline(AutomaticSpeechRecognitionPipeline):
         best_start, best_sum, _ = max_ones_window(stno_mask[1], window_size=30 * 50)
 
         # Extract enrollment features
-        enrollment_features = samples['input_features'][idx][:, best_start*2:best_start*2 + enrollment_length*2]
-        enrollment_attention = samples['attention_mask'][idx][best_start*2:best_start*2 + enrollment_length*2]
+        enrollment_features = samples['input_features'][idx][:, best_start * 2:best_start * 2 + enrollment_length * 2]
+        enrollment_attention = samples['attention_mask'][idx][best_start * 2:best_start * 2 + enrollment_length * 2]
         enrollment_stno = stno_mask[:, best_start:best_start + enrollment_length]
 
         # Pad to original size if needed
         pad_size = original_stno_length - enrollment_length
         # Pad features
-        feature_pad = torch.zeros(enrollment_features.shape[0], 2* pad_size,
-                                dtype=enrollment_features.dtype,
-                                device=enrollment_features.device)
+        feature_pad = torch.zeros(enrollment_features.shape[0], 2 * pad_size,
+                                  dtype=enrollment_features.dtype,
+                                  device=enrollment_features.device)
         enrollment_features = torch.cat([enrollment_features, feature_pad], dim=1)
 
         # Pad attention mask (zeros for padding)
-        attention_pad = torch.zeros(2* pad_size, dtype=enrollment_attention.dtype,
-                                  device=enrollment_attention.device)
+        attention_pad = torch.zeros(2 * pad_size, dtype=enrollment_attention.dtype,
+                                    device=enrollment_attention.device)
         enrollment_attention = torch.cat([enrollment_attention, attention_pad], dim=0)
 
         # Pad STNO mask (zeros for padding)
         stno_pad = torch.zeros(enrollment_stno.shape[0], pad_size,
-                             dtype=enrollment_stno.dtype,
-                             device=enrollment_stno.device)
+                               dtype=enrollment_stno.dtype,
+                               device=enrollment_stno.device)
         enrollment_stno = torch.cat([enrollment_stno, stno_pad], dim=1)
 
         return enrollment_features, enrollment_attention, enrollment_stno
@@ -96,7 +97,6 @@ class DiCoWPipeline(AutomaticSpeechRecognitionPipeline):
     def preprocess(self, inputs, chunk_length_s=0, stride_length_s=None):
         if not isinstance(inputs, str):
             raise ValueError("For now input must be a string representing a path to an audio file")
-
 
         input_dirname = os.path.dirname(inputs)
         resampled_path = f'{input_dirname}/resampled.wav'
@@ -118,15 +118,15 @@ class DiCoWPipeline(AutomaticSpeechRecognitionPipeline):
             stno_mask = self.get_stno_mask(diarization_mask, i)
             stno_masks.append(stno_mask)
         samples['stno_mask'] = torch.stack(stno_masks, axis=0).to(samples['input_features'].device,
-                                                                dtype=samples['input_features'].dtype)
+                                                                  dtype=samples['input_features'].dtype)
         samples['input_features'] = samples['input_features'].repeat(len(per_speaker_samples), 1, 1)
         samples['attention_mask'] = torch.ones(samples['input_features'].shape[0], samples['input_features'].shape[2],
-                                              dtype=torch.bool, device=samples['input_features'].device)
+                                               dtype=torch.bool, device=samples['input_features'].device)
         if "num_frames" in samples:
             del samples["num_frames"]
 
         if hasattr(self.model.config, "uses_enrollments") and self.model.config.uses_enrollments:
-            if  len (inp_aud) / sr <= 30.0:
+            if len(inp_aud) / sr <= 30.0:
                 # We are in the shortform regime, we don't want to condition, deactivate enrollments
                 gr.Info(
                     "If you are experiencing suboptimal performance, consider using a non–self-enrollment conditioned model (e.g., `BUT-FIT/DiCoW_v3_2`) for inputs shorter than 30s.")
@@ -163,7 +163,7 @@ class DiCoWPipeline(AutomaticSpeechRecognitionPipeline):
                 samples['attention_mask'] = torch.stack(all_attention_masks, dim=0)
                 samples['stno_mask'] = torch.stack(all_stno_masks, dim=0)
                 samples['is_valid'] = torch.tensor(all_is_valid, dtype=torch.bool,
-                                                 device=samples['input_features'].device)
+                                                   device=samples['input_features'].device)
 
         yield samples
 
@@ -228,21 +228,21 @@ class DiCoWPipeline(AutomaticSpeechRecognitionPipeline):
         timestamps = [(float(match.group(1)), match.start(), match.end()) for match in matches]
         if not timestamps or len(timestamps) <= 2:
             return input_string
-    
+
         # The whole algorithm boils down to either removing the entire chain of timestamps - the case where all of them are the same (i.e. ...<a><a><a>... -> ......)
         # or removing all but the corner ones (i.e. <a><b><c><c><d> -> <a><d>) - the case where we have end and start timestamps and some rubbish in-between.
-    
+
         processed_timestamps = []
         i = 0
         while i < len(timestamps):
             ts, st, et = timestamps[i]
-    
+
             if i < len(timestamps) - 1 or processed_timestamps[-1][-1] != st:
                 processed_timestamps.append((ts, st, et))
-    
+
             if i == len(timestamps) - 1:
                 break
-    
+
             j = i + 1
             nts, nst, net = timestamps[j]
             all_equal_ts = nts == ts
@@ -251,7 +251,7 @@ class DiCoWPipeline(AutomaticSpeechRecognitionPipeline):
                 # Skip all but the last timestamp. If the last in the chain has the same TS as the processed_timestamps tail, pop processed_timestamps.
                 # If not, append it while skipping all the previous ones.
                 # In other words, keep appending (-2, X, X) as long as the next one is in the chain and then decide what to do with the last one if the next one is not in the chain.
-    
+
                 if j == len(timestamps) - 1:
                     if net == len(input_string) and prev_et != nst:
                         processed_timestamps.append((nts, nst, net))
@@ -273,14 +273,14 @@ class DiCoWPipeline(AutomaticSpeechRecognitionPipeline):
                             processed_timestamps.append((nts, nst, net))
                         j += 1
                         break
-    
+
                 j += 1
                 prev_et = net
                 nts, nst, net = timestamps[j]
                 all_equal_ts = all_equal_ts and nts == ts
-    
+
             i = j
-    
+
         result = []
         prev_end = 0
         for i, (ts, st, et) in enumerate(processed_timestamps):
@@ -293,7 +293,7 @@ class DiCoWPipeline(AutomaticSpeechRecognitionPipeline):
             else:
                 result.append(f'<|{ts:.2f}|>')
             prev_end = et
-    
+
         return "".join(result)
 
     def postprocess(
@@ -319,4 +319,3 @@ class DiCoWPipeline(AutomaticSpeechRecognitionPipeline):
         full_text = "\n\n".join(formatted_lines)
 
         return {"text": full_text, "per_spk_outputs": per_spk_outputs}
-

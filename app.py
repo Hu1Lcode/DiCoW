@@ -1,9 +1,9 @@
-import torch
-
 import gradio as gr
-from transformers import AutoTokenizer, AutoFeatureExtractor, AutoModelForSpeechSeq2Seq
-from pipeline import DiCoWPipeline
+import torch
 from diarizen.pipelines.inference import DiariZenPipeline
+from transformers import AutoTokenizer, AutoFeatureExtractor, AutoModelForSpeechSeq2Seq
+
+from pipeline import DiCoWPipeline
 
 
 def create_lower_uppercase_mapping(tokenizer):
@@ -27,7 +27,7 @@ def create_lower_uppercase_mapping(tokenizer):
 device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
 
 MODEL_NAME = "BUT-FIT/SE_DiCoW"
-DIARIZATION_MODEL="BUT-FIT/diarizen-wavlm-large-s80-md"
+DIARIZATION_MODEL = "BUT-FIT/diarizen-wavlm-large-s80-md"
 dicow = AutoModelForSpeechSeq2Seq.from_pretrained(MODEL_NAME, trust_remote_code=True)
 feature_extractor = AutoFeatureExtractor.from_pretrained(MODEL_NAME)
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
@@ -39,6 +39,7 @@ diar_pipeline.segmentation_batch_size = 16
 
 pipeline = DiCoWPipeline(dicow, diarization_pipeline=diar_pipeline, feature_extractor=feature_extractor,
                          tokenizer=tokenizer, device=device)
+
 
 def transcribe(inputs):
     if inputs is None:
@@ -55,11 +56,10 @@ demo = gr.Blocks(theme=gr.themes.Ocean())
 
 mf_audio = gr.Audio(sources="microphone", type="filepath", format="wav")
 
-
 mf_transcribe = gr.Interface(
     fn=transcribe,
     inputs=[mf_audio
-    ],
+            ],
     outputs="text",
     title="DiCoW: Diarization-Conditioned Whisper",
     description=(
@@ -89,7 +89,7 @@ file_transcribe = gr.Interface(
 
 # if __name__ == "__main__":
 with demo:
-    gr.TabbedInterface([ file_transcribe, mf_transcribe], ["Audio file", "Microphone"])
+    gr.TabbedInterface([file_transcribe, mf_transcribe], ["Audio file", "Microphone"])
 
     gr.Markdown(
         """
@@ -147,4 +147,4 @@ with demo:
     )
     mf_audio.start_recording(lambda _: gr.Warning(f"Please wait for the audio to be displayed before submitting!"))
 
-demo.queue(max_size=5).launch( share=False, root_path="/gradio-demo")
+demo.queue(max_size=5).launch(share=False, root_path="/gradio-demo")
