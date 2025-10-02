@@ -1,6 +1,6 @@
 # DiCoW: Diarization-Conditioned Whisper for Target Speaker Automatic Speech Recognition
 
-DiCoW (Diarization-Conditioned Whisper) enhances OpenAI’s Whisper ASR model by integrating **speaker diarization** for multi-speaker transcription. The app leverages `BUT-FIT/diarizen-wavlm-large-s80-mlc` to segment speakers and provides diarization-conditioned transcription for long-form audio inputs.
+DiCoW (Diarization-Conditioned Whisper) enhances OpenAI’s Whisper ASR model by integrating **speaker diarization** for multi-speaker transcription. The app leverages `BUT-FIT/diarizen-wavlm-large-s80-md` to segment speakers and provides diarization-conditioned transcription for long-form audio inputs.
 
 Training and inference source codes can be found here: [TS-ASR-Whisper](https://github.com/BUTSpeechFIT/TS-ASR-Whisper)
 
@@ -13,7 +13,7 @@ Training and inference source codes can be found here: [TS-ASR-Whisper](https://
   - **Microphone**: Record and transcribe live audio.  
   - **Audio File Upload**: Upload pre-recorded audio files for transcription.  
   - **Folder Batch Processing** – Process multiple .wav files from a directory via the command line.
-- **Diarization Support**: Powered by `BUT-FIT/diarizen-wavlm-large-s80-mlc` for accurate speaker segmentation.  
+- **Diarization Support**: Powered by `BUT-FIT/diarizen-wavlm-large-s80-md` for accurate speaker segmentation.  
 - **Built with 🤗 Transformers**: Uses the latest Whisper checkpoints for robust transcription.  
 
 ## Demo
@@ -143,16 +143,6 @@ If you use our model or code, please, cite:
   pages={1-5},
   keywords={Transforms;Signal processing;Transformers;Acoustics;Speech processing;target-speaker ASR;diarization conditioning;multi-speaker ASR;Whisper},
   doi={10.1109/ICASSP49660.2025.10887683}
-}
-
-@misc{polok2025mlcslmchallenge,
-  title={BUT System for the MLC-SLM Challenge}, 
-  author={Alexander Polok and Jiangyu Han and Dominik Klement and Samuele Cornell and Jan Černocký and Lukáš Burget},
-  year={2025},
-  eprint={2506.13414},
-  archivePrefix={arXiv},
-  primaryClass={eess.AS},
-  url={https://arxiv.org/abs/2506.13414}, 
 }
 ```
 
