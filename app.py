@@ -26,13 +26,15 @@ def create_lower_uppercase_mapping(tokenizer):
 
 device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
 
-MODEL_NAME = "BUT-FIT/DiCoW_v3_2"
+MODEL_NAME = "BUT-FIT/SE-DiCoW"
 DIARIZATION_MODEL = "BUT-FIT/diarizen-wavlm-large-s80-md"
 dicow = AutoModelForSpeechSeq2Seq.from_pretrained(MODEL_NAME, trust_remote_code=True)
 feature_extractor = AutoFeatureExtractor.from_pretrained(MODEL_NAME)
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 create_lower_uppercase_mapping(tokenizer)
 dicow.set_tokenizer(tokenizer)
+dicow.config.model_type = "whisper"
+
 diar_pipeline = DiariZenPipeline.from_pretrained(DIARIZATION_MODEL).to(device)
 diar_pipeline.embedding_batch_size = 16
 diar_pipeline.segmentation_batch_size = 16
@@ -68,7 +70,7 @@ mf_transcribe = gr.Interface(
         f"\nThis demo uses the checkpoint [{MODEL_NAME}](https://huggingface.co/{MODEL_NAME}), "
         f"speaker diarization is powered by the  [{DIARIZATION_MODEL}](https://huggingface.co/{DIARIZATION_MODEL}). **Note:** CTC joint decoding is disabled."
     ),
-    allow_flagging="never",
+    flagging_mode="never",
 )
 
 file_transcribe = gr.Interface(
@@ -84,7 +86,7 @@ file_transcribe = gr.Interface(
         f"\nThis demo uses the checkpoint [{MODEL_NAME}](https://huggingface.co/{MODEL_NAME}), "
         f"speaker diarization is powered by the  [{DIARIZATION_MODEL}](https://huggingface.co/{DIARIZATION_MODEL}). **Note:** CTC joint decoding is disabled."
     ),
-    allow_flagging="never",
+    flagging_mode="never",
 )
 
 # if __name__ == "__main__":
@@ -105,6 +107,12 @@ with demo:
         ## Citation
         If you use our model or code, please, cite:
         ```bibtex
+        @INPROCEEDINGS{polok2026sedicow,
+          author={Polok, Alexander and Klement, Dominik and Cornell, Samuele and Wiesner, Matthew and Černocký, Jan and Khudanpur, Sanjeev and Burget, Lukáš},
+          booktitle={ICASSP 2026 - 2026 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)}, 
+          title={SE-DiCoW: Self-Enrolled Diarization-Conditioned Whisper}, 
+          year={2026},
+        }
         @article{POLOK2026101841,
             title = {DiCoW: Diarization-conditioned Whisper for target speaker automatic speech recognition},
             journal = {Computer Speech & Language},

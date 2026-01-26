@@ -46,21 +46,16 @@ Before running the app, ensure you have the following installed:
    git clone https://github.com/BUTSpeechFIT/DiCoW.git
    cd DiCoW  
     ```
-2. Setup dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Clone DiariZen submodule:
+
+2. Clone DiariZen submodule:
    ```bash
    git submodule init
    git submodule update
    ```
-4. Install the DiariZen dependencies:
+
+3. Setup dependencies:
    ```bash
-   cd DiariZen
-   cd pyannote-audio
-   pip install -e .
-   cd .. & cd ..
+   pip install -r requirements.txt
    ```
    
 ## Usage
@@ -120,6 +115,13 @@ Please ensure compliance with the respective licenses when using, modifying, or 
 ## Citation
 If you use our model or code, please, cite:
 ```
+@INPROCEEDINGS{polok2026sedicow,
+  author={Polok, Alexander and Klement, Dominik and Cornell, Samuele and Wiesner, Matthew and Černocký, Jan and Khudanpur, Sanjeev and Burget, Lukáš},
+  booktitle={ICASSP 2026 - 2026 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)}, 
+  title={SE-DiCoW: Self-Enrolled Diarization-Conditioned Whisper}, 
+  year={2026},
+}
+
 @article{POLOK2026101841,
     title = {DiCoW: Diarization-conditioned Whisper for target speaker automatic speech recognition},
     journal = {Computer Speech & Language},
