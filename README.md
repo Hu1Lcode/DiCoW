@@ -57,7 +57,11 @@ Before running the app, ensure you have the following installed:
    ```bash
    pip install -r requirements.txt
    ```
-   
+
+4. Export DiariZen to path
+    ```bash
+    export PYTHONPATH=$PWD/DiariZen:$PYTHONPATH 
+    ```
 ## Usage
 
 ### Web Interface
