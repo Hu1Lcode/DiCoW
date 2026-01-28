@@ -51,6 +51,10 @@ Before running the app, ensure you have the following installed:
    ```bash
    git submodule init
    git submodule update
+   cd DiariZen
+   git submodule init
+   git submodule update
+   cd ..
    ```
 
 3. Setup dependencies:

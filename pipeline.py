@@ -83,10 +83,10 @@ class DiCoWPipeline(AutomaticSpeechRecognitionPipeline):
         generator = super().preprocess(inputs, chunk_length_s=chunk_length_s, stride_length_s=stride_length_s)
         samples = next(generator)
 
-        diariation_output = self.diarization_pipeline(inputs)
+        diarization_output = self.diarization_pipeline(inputs)
         per_speaker_samples = []
-        for speaker in diariation_output.labels():
-            per_speaker_samples.append(diariation_output.label_timeline(speaker))
+        for speaker in diarization_output.labels():
+            per_speaker_samples.append(diarization_output.label_timeline(speaker))
         diarization_mask = self.get_diarization_mask(per_speaker_samples, samples['input_features'].shape[-1] // 2)
         stno_masks = []
         for i, speaker_samples in enumerate(per_speaker_samples):
