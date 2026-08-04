@@ -1,4 +1,27 @@
 import torch
+import torch_npu
+from torch_npu.contrib import transfer_to_npu
+
+# ============================================================
+# PyTorch 2.6+ weights_only 兼容补丁
+#
+# torch_npu 的 transfer_to_npu 劫持了 torch.load，其 load 实现
+# 硬编码使用 weights-only unpickler（忽略 weights_only 参数），
+# 导致旧 checkpoint 中 TorchVersion / Specifications 等类型被拒。
+# 这里改用原生 torch.serialization.load 绕过 torch_npu 劫持。
+# ============================================================
+import torch.serialization as torch_serialization
+
+_original_torch_load = torch.load
+
+
+def _patched_torch_load(*args, **kwargs):
+    kwargs["weights_only"] = False
+    return torch_serialization.load(*args, **kwargs)
+
+
+torch.load = _patched_torch_load
+
 import argparse
 import os
 import glob
