@@ -70,6 +70,14 @@ def parse_arguments():
         help="Diarization model name or path"
     )
 
+    parser.add_argument(
+        "--embedding-model",
+        type=str,
+        default="pyannote/wespeaker-voxceleb-resnet34-LM",
+        help="Diarization model name or path"
+    )
+
+
     # Input/Output arguments
     parser.add_argument(
         "--input-folder",
@@ -212,7 +220,7 @@ def main():
     if args.verbose:
         print("Loading diarization model...")
 
-    diar_pipeline = DiariZenPipeline.from_pretrained(args.diarization_model).to(device)
+    diar_pipeline = DiariZenPipeline.from_pretrained(args.diarization_model, embedding_model_path=args.embedding_model).to(device)
     diar_pipeline.embedding_batch_size = args.embedding_batch_size
     diar_pipeline.segmentation_batch_size = args.segmentation_batch_size
 
