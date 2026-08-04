@@ -33,6 +33,14 @@ def max_ones_window(tensor: torch.Tensor, window_size: int = 30):
 
 class DiCoWPipeline(AutomaticSpeechRecognitionPipeline):
     def __init__(self, *args, diarization_pipeline, **kwargs):
+        # 新版 transformers 按 config.model_type 判定 pipeline 类型：
+        # DiCoW 是自定义 Whisper 变体（model_type 非 "whisper"，类名也不在标准
+        # seq2seq 映射中），会被误判为 CTC 模型，导致 return_timestamps 校验报错
+        # （CTC 只允许 'char'/'word'，而 DiCoW 的 generation_config 为 True）。
+        # 这里将 model_type 修正为 "whisper"，使其正确走 seq2seq_whisper 分支。
+        model = args[0] if args else kwargs.get("model")
+        if model is not None and getattr(model.config, "model_type", None) != "whisper":
+            model.config.model_type = "whisper"
         super().__init__(*args, **kwargs)
         self.diarization_pipeline = diarization_pipeline
         self.type = "seq2seq_whisper"
